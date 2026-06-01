@@ -1004,7 +1004,7 @@ ggsave('Figure/Figure5_Violin_Env.png', width = 20, height = 12)
 #' @param Satscan_all file containing all the unique clusters
 Snapshot_Pinf <- function(Sce, Para, Para2, Sim, Land, st, Satscan_all){
   
-  Hab <- read.csv(paste0('/Data_output/HabRisk_',Para2,'_Sim',Sim,'_Para',Para,'_',Sce,'.csv'))
+  Hab <- read.csv(paste0('/Data_output/Model_output_249/HabRisk_',Para2,'_Sim',Sim,'_Para',Para,'_',Sce,'.csv'))
 
   Hab$xloc <- as.integer(Hab$xloc)
   Hab$yloc <- as.integer(Hab$yloc)
