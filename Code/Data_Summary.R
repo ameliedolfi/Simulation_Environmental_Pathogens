@@ -62,7 +62,9 @@ Infection_visual <- function(parameters, wd, wd_output, nrep, nstep, out=c(),
                              scenario, last_name = ''){
   Numbers <- c() # initialize the output dataframe
   
-  for(p in seq(parameters[1, 'para'], max(parameters$para))){ # For every parameter sets
+# for(p in seq(parameters[1, 'para'], max(parameters$para))){ # For every parameter sets
+  p = 249 ## Here I show this on parameter 249 only. Run the loop line 65 otherwise
+
     print(p)
     para <- parameters[parameters$para==p,][1,] # take the parameter values to open the file
     
@@ -71,7 +73,7 @@ Infection_visual <- function(parameters, wd, wd_output, nrep, nstep, out=c(),
     for(s in seq(para$para*nrep-(nrep-1), para$para*nrep)){ # ensure the simulations with the same parameter values are put together
       if(!s %in% out){
         
-        dsum <- read.csv(paste0('Data_output/Sum_',s,'_Para',p,last_name,'.csv'))
+        dsum <- read.csv(paste0('Model_output_249/Sum_',s,'_Para',p,last_name,'.csv'))
         Num_sim = dsum[nrow(dsum),6]
         Total_sim = dsum[nrow(dsum),8]
         dsum <- dsum[-nrow(dsum),]
@@ -82,9 +84,9 @@ Infection_visual <- function(parameters, wd, wd_output, nrep, nstep, out=c(),
         if(Num_sim !=0){
           for(n in (1:Num_sim)){
             
-            Test_habrisk <- read.csv(paste0('Data_output/HabRisk_',s,'_Sim',n,'_Para',p,last_name,'.csv'))[-1,]
+            Test_habrisk <- read.csv(paste0('Model_output_249/HabRisk_',s,'_Sim',n,'_Para',p,last_name,'.csv'))[-1,]
             
-            Inds <- read.csv(paste0('Data_output/Inds_',s,'_Para',p,last_name,'.csv'))[-1,]
+            Inds <- read.csv(paste0('Model_output_249/Inds_',s,'_Para',p,last_name,'.csv'))[-1,]
             
             rep <- rep +1
             ls <- nrow(subset(dsum, Index == s & sim == n))
@@ -125,7 +127,7 @@ Infection_visual <- function(parameters, wd, wd_output, nrep, nstep, out=c(),
     }
   }
   
-  write.csv(Numbers, paste0('Data_output/Numbers', scenario,'.csv'), row.names = FALSE)
+  write.csv(Numbers, paste0('Model_output_249/Numbers', scenario,'.csv'), row.names = FALSE)
   
   
   
@@ -165,11 +167,29 @@ Infection_visual <- function(parameters, wd, wd_output, nrep, nstep, out=c(),
   Numbers_means$Prop_Sucess <- Numbers_means$Total_success / as.numeric(Numbers_means$Total_sim)
   Numbers_means <- merge(Numbers_means, unique(parameters[,-11]), by = 'para')
   
-  write.csv(Numbers, paste0('Data_output/Numbers_final_',scenario,'.csv'), row.names = FALSE)
-  write.csv(Numbers_means, paste0('Data_output/Numbers_means_',scenario,'.csv'), row.names = FALSE)
+  write.csv(Numbers, paste0('Model_output_249/Numbers_final_',scenario,'.csv'), row.names = FALSE)
+  write.csv(Numbers_means, paste0('Model_output_249/Numbers_means_',scenario,'.csv'), row.names = FALSE)
   
   return(list(Numbers, Numbers_means))
   
 }
 
+
+
+## Load the parameter infos
+parameter_OK = read.csv('Data_input/Parameters_OK.csv')
+parameter_CS = read.csv('Data_input/Parameters_CS.csv')
+parameter_SK = read.csv('Data_input/Parameters_SK.csv')
+
+
+### Get the summary of the disease dynamic data for parameter 249
+
+Analysis_OK <- Infection_visual(parameters = parameter_OK, 
+                                nrep = 5, nstep = 10000, scenario = 'OK', last_name = '_OK')
+
+Analysis_CS <- Infection_visual(parameters = parameter_CS, 
+                                nrep = 5, nstep = 10000, scenario = 'CS', last_name = '_CS')
+
+Analysis_SK <- Infection_visual(parameters = parameter_SK,
+                                nrep = 5, nstep = 10000, scenario = 'SK', last_name = '_SK')
 
