@@ -1254,6 +1254,18 @@ ggsave(plot = pdp_PropCell, 'Figures/FigureSI9.png' , width = 15, height = 15)
 ###############
 ## Figure S10 ##
 ###############
+pdp_Unique_clust <- Pdp_function_all(rf_OK = res_Unique_clust_OK,
+                                     rf_CS = res_Unique_clust_CS,
+                                     rf_SK = res_Unique_clust_SK,
+                                     sub.data_OK = Num_unique[Num_unique$Scenario == 'OK',], 
+                                     sub.data_CS = Num_unique[Num_unique$Scenario == 'CS',], 
+                                     sub.data_SK = Num_unique[Num_unique$Scenario == 'SK',],
+                                     ylab = '# unique clusters')
+ggsave(plot = pdp_Unique_clust, 'Figures/FigureSI10.png' , width = 15, height = 15)
+
+###############
+## Figure S11 ##
+###############
 pdp_MeanCluster <- Pdp_function_all(rf_OK = res_MeanCluster_OK,
                                     rf_CS = res_MeanCluster_CS,
                                     rf_SK = res_MeanCluster_SK,
@@ -1262,10 +1274,10 @@ pdp_MeanCluster <- Pdp_function_all(rf_OK = res_MeanCluster_OK,
                                     sub.data_SK = Unique_cluster_p[Unique_cluster_p$Scenario == 'SK',],
                                     ylab = 'Mean cluster peak')
 
-ggsave(plot = pdp_MeanCluster, 'Figures/FigureSI10.png' , width = 15, height = 15)
+ggsave(plot = pdp_MeanCluster, 'Figures/FigureSI11.png' , width = 15, height = 15)
 
 ###############
-## Figure S11 ##
+## Figure S12 ##
 ###############
 pdp_Size_mean <- Pdp_function_all(rf_OK = res_Size_mean_OK,
                                   rf_CS = res_Size_mean_CS,
@@ -1274,16 +1286,6 @@ pdp_Size_mean <- Pdp_function_all(rf_OK = res_Size_mean_OK,
                                   sub.data_CS = Unique_cluster_p[Unique_cluster_p$Scenario == 'CS',], 
                                   sub.data_SK = Unique_cluster_p[Unique_cluster_p$Scenario == 'SK',],
                                   ylab = '# reservoirs per cluster')
-ggsave(plot = pdp_Size_mean, 'Figures/FigureSI11.png' , width = 15, height = 15)
+ggsave(plot = pdp_Size_mean, 'Figures/FigureSI12.png' , width = 15, height = 15)
 
-###############
-## Figure S12 ##
-###############
-pdp_Unique_clust <- Pdp_function_all(rf_OK = res_Unique_clust_OK,
-                                     rf_CS = res_Unique_clust_CS,
-                                     rf_SK = res_Unique_clust_SK,
-                                     sub.data_OK = Num_unique[Num_unique$Scenario == 'OK',], 
-                                     sub.data_CS = Num_unique[Num_unique$Scenario == 'CS',], 
-                                     sub.data_SK = Num_unique[Num_unique$Scenario == 'SK',],
-                                     ylab = '# unique clusters')
-ggsave(plot = pdp_Unique_clust, 'Figures/FigureSI12.png' , width = 15, height = 15)
+
