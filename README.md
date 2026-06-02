@@ -1,5 +1,5 @@
 This repository contains the code and data used for the MS: 
-Pathogen transmission, host movement, and landscape features alter the spatial distribution of environmentally transmitted pathogens
+
 Where curse of the Pharaoh meets landscape of disgust: host behavior and pathogen release mode jointly shape disease dynamics and spatial distribution
 
 Amélie C. Dolfi _a_, Marie L. J. Gilbertson _a_, Lauren A. White _b_, Wendy C. Turner _c_
