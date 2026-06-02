@@ -29,6 +29,8 @@ In **Data_output** : 14 files
   - All_CS_time_dynamics.RData; All_OK_time_dynamics.RData; All_SK_time_dynamics.RData: files containing the disease dynamic across time
 
 In **Model_output_249**: 330 files
-- HabRisk_*_Sim*_Para249_*.csv: 300 files containing the model outputs for the parameter set 249
-- Inds_*_Para249_*.csv : 15 files containing the output for each individual in the simulation
-- Sum_*_Para249_*.csv : 15 files containing the summary of each simulation
+- HabRisk_+_Sim+_Para249_+.csv: 300 files containing the model outputs for the parameter set 249
+- Inds_+_Para249_+.csv : 15 files containing the output for each individual in the simulation
+- Sum_+_Para249_+.csv : 15 files containing the summary of each simulation
+
+In **Satscan_output_249**:
