@@ -34,3 +34,4 @@ In **Model_output_249**: 330 files
 - Sum_+_Para249_+.csv : 15 files containing the summary of each simulation
 
 In **Satscan_output_249**:
+  - Satscan_+_Para249_+.RData: Satscan results summary
