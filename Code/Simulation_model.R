@@ -602,7 +602,7 @@ Simulation_loop <- function(nsim, max_step, Shed, Death,
       ## When Pathogen concentration is below P_inf minimum, take out for the environment
       
       
-      reservoir[reservoir$step_created != step, 'P_inf'] <- reservoir[reservoir$step_created != step, 'P_inf'] * (1-mu)   
+      reservoir[reservoir$step_created != step, 'P_inf'] <- reservoir[reservoir$step_created != step, 'P_inf'] * exp(-mu)   
       reservoir[reservoir$step_created != step, 'status'] <- ifelse(reservoir[reservoir$step_created != step, 'P_inf'] < Pinf_minimum, 'D', reservoir[reservoir$step_created != step, 'status'])
       reservoir[reservoir$step_created != step, 'step_dead'] <- ifelse(reservoir[reservoir$step_created != step, 'status'] == 'D', step, NA)
       
@@ -737,14 +737,17 @@ for (i in nrow(parameter_CS)){
 }
 
 
-## SK run
+## Test using SK run
+# I used a server to run the codes.
+# I ran 5 times the same parameter sets (each line of parameter_SK is repeated 5 times) on 20 simulations (nsim = 20) to obtain my 100 simulation per parameter set.
+# This was done to reduce model computation time for each parameter sets (Each code could run a maximum of 3 days on the server).
+
 
 parameter_SK <- read.csv("Data_input/Parameters_SK.csv", sep=',')
 
-
-for (i in nrow(parameter_SK)){
+for (i in (1:nrow(parameter_SK))){
   
-  para <- parameter_SK[index,]
+  para <- parameter_SK[i,]
   set.seed(i)
   Simulation_loop(nsim = 20, max_step = 10000, Shed = para$Shed, Death = para$Death,
                   k = 5 , Land = para$Land ,
