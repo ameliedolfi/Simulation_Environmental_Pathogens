@@ -27,6 +27,7 @@ In **Data_output** : 14 files
   - Numbers_final_CS.csv; Numbers_final_OK.csv; Numbers_final_SK.csv: Summaries at the parameter set level
   - Unique_clusters_CS.RData; Unique_clusters_OK.RData; Unique_clusters_SK.RData: Files containing all the unique clusters found by satscan
   - All_CS_time_dynamics.RData; All_OK_time_dynamics.RData; All_SK_time_dynamics.RData: files containing the disease dynamic across time
+  - HabRisk_6_Sim19_Para2.csv and Satscan_6_Para_2_OK.RData: files containing results information used to produce figure 1 of the MS
 
 In **Model_output_249**: 330 files
 - HabRisk_+_Sim+_Para249_+.csv: 300 files containing the model outputs for the parameter set 249
