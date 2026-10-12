@@ -2,6 +2,7 @@
 #' @Date June 1st 2026
 #' @title  Analysis and Figures for 
 #' "Where curse of the Pharaoh meets landscape of disgust: host behavior and pathogen release mode jointly shape disease dynamics and spatial distribution'
+#' @UpdatedVersion October 12th 2026
 
 # rm(list = ls())
 
@@ -324,6 +325,65 @@ Pdp_function_all <- function(rf_OK,rf_CS,rf_SK,
   return(plot_PDP_all)
 }
 
+#' @name Global_RF_VIA
+#' @description
+#' This function run the random forest and variable importance analysis for the global random forest equation (pooled over the three release mdoes)
+#' @param Variable name of the variable of interest
+#' @param df dataframe to run the rf on
+#' @param VIA_title title for the VIA plot
+#' @param nt number of tree to run the forest on
+
+Global_RF_VIA <- function(Variable, df, VIA_title, nt = 500){
+  
+  rf <- randomForest(formula = as.formula(paste0(Variable, '~ N + p + H + B + B1 + gamma + mu + per + rhoD + Scenario')), 
+                     data=df, ntree= nt, keep.forest=TRUE, 
+                     importance=TRUE)
+  
+  # Get all the parameters names
+  VIA <- as.data.frame(rf$importance)
+  VIA$Parameters <-rownames(VIA)
+  names(VIA)[1] <- 'Importance'
+  # Visual mark of the 3 best variable per scenario
+  
+  Order_parameters <- c("p", "H", "N", "B", "B1",  "per", "gamma", "mu", "rhoD", "Scenario")
+  
+  VIA <- VIA %>% mutate(Parameters = factor(Parameters, levels = Order_parameters)) %>%
+    arrange(Parameters)
+  
+  VIA_plot <- ggplot(VIA, aes(x = Parameters, y = Importance, fill = as.factor(Parameters)))+
+    geom_bar(position = position_dodge2(), stat = 'identity', col ='black')+
+    ylab('Variable Importance')+
+    scale_fill_manual('Parameter type', 
+                      values = c('gold','goldenrod',
+                                 'midnightblue','blue2','turquoise','darkblue','purple','deeppink','orchid','forestgreen'),
+                      labels = c('p' = 'p',
+                                 'H' = 'H',
+                                 'per' = 'per',
+                                 'N' = 'N',
+                                 'gamma' = expression(gamma),
+                                 'rhoD' = expression(rho),
+                                 'Scenario' = 'Rm',
+                                 'B' =  expression(beta),
+                                 'B1' = expression(beta[1]),
+                                 'mu' = expression(mu))) +
+    scale_x_discrete(labels = c('p' = 'p',
+                                'H' = 'H',
+                                'per' = 'per',
+                                'N' = 'N',
+                                'gamma' = expression(gamma),
+                                'rhoD' = expression(rho),
+                                'Scenario' = 'Rm',
+                                'B' =  expression(beta),
+                                'B1' = expression(beta[1]),
+                                'mu' = expression(mu)))+
+    theme_pubclean()+
+    plot_theme + 
+    theme(strip.text = element_text(size = 20))+
+    ggtitle(VIA_title)
+  
+  return(list(rf, VIA_plot))
+}
+
 
 ### now the data
 ## Get the datasets
@@ -416,11 +476,14 @@ summary(Res_para[Res_para$Scenario == 'CS', 'Prop_Sucess']) ; sd(Res_para[Res_pa
 summary(Res_para[Res_para$Scenario == 'SK', 'Prop_Sucess']) ; sd(Res_para[Res_para$Scenario == 'SK', 'Prop_Sucess'], na.rm = T)
 # Number of encounters , average of 76% (+- 24)
 
-# Wilcoxon
-Signif_continuous_PropSuccess <- Res_para %>%
-  pairwise_wilcox_test(Prop_Sucess ~ Scenario, p.adjust.method = "bonferroni")
-# All significantly different from each others
-
+### Comparisons between release mode:
+# I adjust the success so I can run the glmm on a beta family (few 0 and 1 so it is okay to do this)
+Res_para$Prop_Sucess_adj <- (Res_para$Prop_Sucess * (n - 1) + 0.5) / n
+model_PropSucess <- glmmTMB(Prop_Sucess_adj ~ Scenario + (1 | para), family = beta_family(link = "logit"), data = Res_para)
+emmeans(model_PropSucess, pairwise ~ Scenario, adjust = "tukey", type = 'response')
+sim_res_model_PropSucess <- simulateResiduals(model_PropSucess)
+plot(sim_res_model_PropSucess)
+## All different from each others
 ## SK > OK and CS
 
 set.seed(1234)
@@ -428,11 +491,14 @@ res_PropSucess_OK <- Compute_rf(df = Res_para_OK, Variable = 'Prop_Sucess', rhoD
 res_PropSucess_CS <- Compute_rf(df = Res_para_CS, Variable = 'Prop_Sucess', rhoS = ' + rhoS')
 res_PropSucess_SK <- Compute_rf(df = Res_para_SK, Variable = 'Prop_Sucess', rhoD = ' + rhoD',  rhoS = ' + rhoS')
 
-SI2a <- VIA_Plot(rf_OK = res_PropSucess_OK,
+SI3a <- VIA_Plot(rf_OK = res_PropSucess_OK,
                  rf_CS = res_PropSucess_CS,
                  rf_SK = res_PropSucess_SK,
                  title_VIA = 'a. Proportion of simulations with a successful outbreak',
                  name_VIA = 'Prop_Sucess')
+
+
+Global_RF_SI2a <- Global_RF_VIA(Variable = 'Prop_Sucess', df = Res_para, VIA_title = 'a. Proportion of successful simulations' )
 
 ####################################
 ## Depletion of susceptible hosts ##
@@ -454,22 +520,42 @@ summary(Res_sim[Res_sim$Pop_die == 1 & Res_sim$Scenario == 'CS',]$last_step); sd
 summary(Res_sim[Res_sim$Pop_die == 1 & Res_sim$Scenario == 'SK',]$last_step); sd(Res_sim[Res_sim$Pop_die == 1 & Res_sim$Scenario == 'SK',]$last_step)
 # Mean = 3654 +_ 2208 / Max = 10000
 
-# Wilcoxon test
-Signif_Pop_Die <- Res_para %>%
-  pairwise_wilcox_test(Percent_simulation_Pop_die ~ Scenario, p.adjust.method = "bonferroni")
-# SK significantly different from OK and CS
-# OK and CS not significantly different
+### Comparisons between release mode:
+table(Res_para$Percent_simulation_Pop_die)
+## This is zero inflated
+# Part 1: probability of "success" (non-zero outcome)
+Res_para$Percent_simulation_Pop_die_nonzero <- as.numeric(Res_para$Percent_simulation_Pop_die > 0)
+model_binom_PDie <- glmmTMB(Percent_simulation_Pop_die_nonzero ~ Scenario + (1 | para), family = binomial(), data = Res_para)
+emmeans(model_binom_PDie, pairwise ~ Scenario, adjust = "tukey", type = 'response')
+sim_res_model_binom_PDie <- simulateResiduals(model_binom_PDie)
+plot(sim_res_model_binom_PDie)
+
+# Part 2: magnitude given non-zero (excluding exact 1s, or modeling them separately too)
+Res_para_nonzero_PDie <- Res_para[Res_para$Percent_simulation_Pop_die > 0 , ]
+Res_para_nonzero_PDie$Percent_simulation_Pop_die_adj <- (Res_para_nonzero_PDie$Percent_simulation_Pop_die * (n - 1) + 0.5) / n
+model_beta_PDie <- glmmTMB(Percent_simulation_Pop_die_adj ~ Scenario + (1 | para), family = beta_family(link = "logit"), data = Res_para_nonzero_PDie)
+emmeans(model_beta_PDie, pairwise ~ Scenario, adjust = "tukey", type = 'response')
+sim_res_model_beta_PDie <- simulateResiduals(model_beta_PDie)
+plot(sim_res_model_beta_PDie)
+
+## Even though with have a small deviation, this can come out because of the high
+# number of simulations. Overall the qqplot and variances look mostly good so we keep this.
+
 
 set.seed(1234)
 res_Perc_PopDie_OK <- Compute_rf(df = Res_para_OK, Variable = 'Percent_simulation_Pop_die', rhoD = ' + rhoD')
 res_Perc_PopDie_CS <- Compute_rf(df = Res_para_CS, Variable = 'Percent_simulation_Pop_die', rhoS = ' + rhoS')
 res_Perc_PopDie_SK <- Compute_rf(df = Res_para_SK, Variable = 'Percent_simulation_Pop_die', rhoD = ' + rhoD',  rhoS = ' + rhoS')
 
-SI2b <- VIA_Plot(rf_OK = res_Perc_PopDie_OK,
+SI3b <- VIA_Plot(rf_OK = res_Perc_PopDie_OK,
                  rf_CS = res_Perc_PopDie_CS,
                  rf_SK = res_Perc_PopDie_SK,
                  title_VIA = 'b. Proportion of simulation with susceptible host depletion',
                  name_VIA = 'Perc_PopDie')
+
+
+Gloabl_RF_SI2b <- Global_RF_VIA(Variable = 'Percent_simulation_Pop_die', df = Res_para,
+                  VIA_title = 'b. Proportion of simulation with susceptible host depletion' )
 
 ##########################
 ### Pathogen faded-out ##
@@ -490,23 +576,45 @@ summary(Res_sim[Res_sim$Disease_die == 1 & Res_sim$Scenario == 'CS',]$last_step)
 summary(Res_sim[Res_sim$Disease_die == 1 & Res_sim$Scenario == 'SK',]$last_step); sd(Res_sim[Res_sim$Disease_die == 1 & Res_sim$Scenario == 'SK',]$last_step)
 # mean = 7047 +- 1816 / Max = 9999
 
-# Wilcoxon test
-Signif_Disease_die <- Res_para %>%
-  pairwise_wilcox_test(Percent_simulation_Disease_die ~ Scenario, p.adjust.method = "bonferroni")
-# CS significantly different from OK and SK
-# OK and SK not significantly different
+### Comparisons between release mode:
+# Part 1: probability of "success" (non-zero outcome)
+Res_para$Percent_simulation_Disease_die_nonzero <- as.numeric(Res_para$Percent_simulation_Disease_die > 0)
+model_binom_DDie <- glmmTMB(Percent_simulation_Disease_die_nonzero ~ Scenario + (1 | para), family = binomial(), data = Res_para)
+emmeans(model_binom_DDie, pairwise ~ Scenario, adjust = "tukey", type = 'response')
+sim_res_model_binom_DDie <- simulateResiduals(model_binom_DDie)
+plot(sim_res_model_binom_DDie)
+
+# Part 2: magnitude given non-zero (excluding exact 1s, or modeling them separately too)
+Res_para_nonzero_DDie <- Res_para[Res_para$Percent_simulation_Disease_die > 0 , ]
+Res_para_nonzero_DDie$Percent_simulation_Disease_die_adj <- (Res_para_nonzero_DDie$Percent_simulation_Disease_die * (n - 1) + 0.5) / n
+model_beta_DDie <- glmmTMB(Percent_simulation_Disease_die_adj ~ Scenario + (1 | para), family = beta_family(link = "logit"), data = Res_para_nonzero_DDie)
+emmeans(model_beta_DDie, pairwise ~ Scenario, adjust = "tukey", type = 'response')
+sim_res_model_beta_DDie <- simulateResiduals(model_beta_DDie)
+plot(sim_res_model_beta_DDie)
+
+## Same as for Population die, the deviation are low so we keep this.
+## All significantly diffferent
+
+## Analaysis for the last step
+# Negative binomial as it is a step count
+model_lastStepDie <- glmmTMB( last_step ~ Scenario + (1 | para), family = nbinom2(), data = Res_sim[Res_sim$Disease_die == 1,])
+emmeans(model_lastStepDie, pairwise ~ Scenario, adjust = "tukey", type = 'response')
+sim_res_model_lastStepDie <- simulateResiduals(model_lastStepDie)
+plot(sim_res_model_lastStepDie)
 
 set.seed(1234)
 res_Perc_DiseaseDie_OK <- Compute_rf(df = Res_para_OK, Variable = 'Percent_simulation_Disease_die', rhoD = ' + rhoD')
 res_Perc_DiseaseDie_CS <- Compute_rf(df = Res_para_CS, Variable = 'Percent_simulation_Disease_die', rhoS = ' + rhoS')
 res_Perc_DiseaseDie_SK <- Compute_rf(df = Res_para_SK, Variable = 'Percent_simulation_Disease_die', rhoD = ' + rhoD',  rhoS = ' + rhoS')
 
-SI2c <- VIA_Plot(rf_OK = res_Perc_DiseaseDie_OK,
+SI3c <- VIA_Plot(rf_OK = res_Perc_DiseaseDie_OK,
                  rf_CS = res_Perc_DiseaseDie_CS,
                  rf_SK = res_Perc_DiseaseDie_SK,
                  title_VIA = 'c. Proportion of simulation with pathogen fade-out',
                  name_VIA = 'Perc_DzDie')
 
+Global_RF_SI2c <- Global_RF_VIA(Variable = 'Percent_simulation_Disease_die', df = Res_para, 
+                  VIA_title = 'c. Proportion of simulation with pathogen fade-out' )
 
 ########################################
 ## Proportion of infected individuals ##
@@ -518,21 +626,29 @@ summary(Res_sim[Res_sim$Scenario == 'CS', 'Prop_Infected_Final']) ; sd(Res_sim[R
 summary(Res_sim[Res_sim$Scenario == 'SK', 'Prop_Infected_Final']) ; sd(Res_sim[Res_sim$Scenario == 'SK', 'Prop_Infected_Final'])
 # for SK scenario, the proportion of population infected at the end is 69% (+- 34%)
 
-# Wilcoxon test
-Signif_Prop_Inf <- Res_sim %>%
-  pairwise_wilcox_test(Prop_Infected_Final ~ Scenario, p.adjust.method = "bonferroni")
-# All significantly different from each others
+### Comparisons between release mode:
+# I adjust the proportion of infected hosts so I can run the glmm on a beta family (few 0 and 1 so it is okay to do this)
+Res_sim$Prop_Infected_Final_adj <- (Res_sim$Prop_Infected_Final * (n_sim - 1) + 0.5) / n_sim
+# e.g., proportion data (0-1, excluding exact 0/1)
+model_PInfectedHost <- glmmTMB(Prop_Infected_Final_adj ~ Scenario + (1 | para), family = beta_family(link = "logit"), data = Res_sim)
+emmeans(model_PInfectedHost, pairwise ~ Scenario, adjust = "tukey", type = 'response')
+sim_res_model_PInfectedHost<- simulateResiduals(model_PInfectedHost)
+plot(sim_res_model_PInfectedHost)
+# All significantly different from each others with SK > OK > CS
 
 set.seed(1234)
 res_Perc_PropInd_OK <- Compute_rf(df = Res_sim_OK, Variable = 'Prop_Infected_Final', rhoD = ' + rhoD')
 res_Perc_PropInd_CS <- Compute_rf(df = Res_sim_CS, Variable = 'Prop_Infected_Final', rhoS = ' + rhoS')
 res_Perc_PropInd_SK <- Compute_rf(df = Res_sim_SK, Variable = 'Prop_Infected_Final', rhoD = ' + rhoD',  rhoS = ' + rhoS')
 
-SI2d <- VIA_Plot(rf_OK = res_Perc_PropInd_OK,
+SI3d <- VIA_Plot(rf_OK = res_Perc_PropInd_OK,
                  rf_CS = res_Perc_PropInd_CS,
                  rf_SK = res_Perc_PropInd_SK,
                  title_VIA = 'd. Proportion of individuals infected per simulation',
                  name_VIA = 'Perc_PropInD')
+
+Global_RF_SI2d <- Global_RF_VIA(Variable = 'Prop_Infected_Final', df = Res_sim, 
+                     VIA_title = 'd. Proportion of individuals infected per simulation' )
 
 ###############################
 ## Period without infection ##
@@ -546,24 +662,27 @@ summary(Res_sim[Res_sim$Scenario == 'CS', 'Max_period_no_inf']) ; sd(Res_sim[Res
 summary(Res_sim[Res_sim$Scenario == 'SK', 'Max_period_no_inf']) ; sd(Res_sim[Res_sim$Scenario == 'SK', 'Max_period_no_inf'], na.rm = T)
 # Max number of continuous steps without infections, average of 1760 (+- 1274; max 9826)
 
-# Wilcoxon test
-Signif_continuous_Noinf_step <- Res_sim %>%
-  pairwise_wilcox_test(Max_period_no_inf ~ Scenario, p.adjust.method = "bonferroni")
-# CS significantly different from OK and SK
-# OK and SK not significantly different from each others
-#  CS < SK and OK
+### Comparisons between release mode:
+# Negative bionomial
+model_MaxPeriodNoInf <- glmmTMB(Max_period_no_inf ~ Scenario + (1 | para), family = nbinom2(), data = Res_sim)
+emmeans(model_MaxPeriodNoInf, pairwise ~ Scenario, adjust = "tukey", type = 'response')
+sim_res_model_MaxPeriodNoInf <- simulateResiduals(model_MaxPeriodNoInf)
+plot(sim_res_model_MaxPeriodNoInf)
+# None significantly different from each others 
 
 set.seed(1234)
 res_Perc_MaxPeirod_OK <- Compute_rf(df = Res_sim_OK, Variable = 'Max_period_no_inf', rhoD = ' + rhoD')
 res_Perc_MaxPeirod_CS <- Compute_rf(df = Res_sim_CS, Variable = 'Max_period_no_inf', rhoS = ' + rhoS')
 res_Perc_MaxPeirod_SK <- Compute_rf(df = Res_sim_SK, Variable = 'Max_period_no_inf', rhoD = ' + rhoD',  rhoS = ' + rhoS')
 
-SI2e <- VIA_Plot(rf_OK = res_Perc_MaxPeirod_OK,
+SI3e <- VIA_Plot(rf_OK = res_Perc_MaxPeirod_OK,
                  rf_CS = res_Perc_MaxPeirod_CS,
                  rf_SK = res_Perc_MaxPeirod_SK,
                  title_VIA = 'e. Maximum period between consecutive infection',
                  name_VIA = 'Max_period_no_inf')
 
+Global_RF_SI2e <- Global_RF_VIA(Variable = 'Max_period_no_inf', df = Res_sim, 
+                      VIA_title = 'e. Maximum period between consecutive infection' )
 
 ###########################################
 ## Number of encounters before infection ##
@@ -575,23 +694,27 @@ summary(Res_para[Res_para$Scenario == 'CS', 'Mean_Crossed_res_I']) ; sd(Res_para
 summary(Res_para[Res_para$Scenario == 'SK', 'Mean_Crossed_res_I']) ; sd(Res_para[Res_para$Scenario == 'SK', 'Mean_Crossed_res_I'], na.rm = T)
 # Number of encounters , average of 87 (+- 67; max 468, min = 3)
 
-# Wilcoxon
-Signif_continuous_Noinf_step <- Res_para %>%
-  pairwise_wilcox_test(Mean_Crossed_res_I ~ Scenario, p.adjust.method = "bonferroni")
-# All significantly different from each others
-# OK < SK < CS
+### Comparisons between release mode:
+# Negative bionomial
+model_MeanCrossedresI <- glmmTMB(Mean_Crossed_res_I ~ Scenario + (1 | para), family = Gamma(link = 'log'), data = Res_para)
+emmeans(model_MeanCrossedresI, pairwise ~ Scenario, adjust = "tukey", type = 'response')
+sim_res_model_MeanCrossedresI <- simulateResiduals(model_MeanCrossedresI)
+plot(sim_res_model_MeanCrossedresI)
+# All significantly different from each others 
 
 set.seed(1234)
 res_MeanInteract_OK <- Compute_rf(df = Res_para_OK, Variable = 'Mean_Crossed_res_I', rhoD = ' + rhoD')
 res_MeanInteract_CS <- Compute_rf(df = Res_para_CS, Variable = 'Mean_Crossed_res_I', rhoS = ' + rhoS')
 res_MeanInteract_SK <- Compute_rf(df = Res_para_SK, Variable = 'Mean_Crossed_res_I', rhoD = ' + rhoD',  rhoS = ' + rhoS')
 
-SI2f <- VIA_Plot(rf_OK = res_MeanInteract_OK,
+SI3f <- VIA_Plot(rf_OK = res_MeanInteract_OK,
                  rf_CS = res_MeanInteract_CS,
                  rf_SK = res_MeanInteract_SK,
                  title_VIA = 'f. Mean number of reservoir interaction before infection',
                  name_VIA = 'Mean_Crossed_res_I')
 
+Global_RF_SI2f <- Global_RF_VIA(Variable = 'Mean_Crossed_res_I', df = Res_para, 
+                          VIA_title = 'f. Mean number of reservoir interaction before infection' )
 
 ##################################################
 ## Proportion of infectious environmental cells ##
@@ -605,79 +728,27 @@ summary(Res_para[Res_para$Scenario == 'CS', 'Mean_Number_cell_infected']) / 1089
 summary(Res_para[Res_para$Scenario == 'SK', 'Mean_Number_cell_infected']) / 1089 ; sd(Res_para[Res_para$Scenario == 'SK', 'Mean_Number_cell_infected']) / 1089
 # for SK scenario, the average % of environment infected at some point is 25% (+- 20%; max = 99.6%)
 
-# Wilcoxon
-Signif_Prop_cell <- Res_para %>%
-  pairwise_wilcox_test(Mean_Number_cell_infected ~ Scenario, p.adjust.method = "bonferroni")
-# All significantly different fro; each others 
-## OK < CS < SK
+### Comparisons between release mode:
+# beta family
+model_PropCell <- glmmTMB(Mean_Number_cell_infected/1089 ~ Scenario + (1 | para), family = beta_family(link = "logit"), data = Res_para)
+emmeans(model_PropCell, pairwise ~ Scenario, adjust = "tukey", type = 'response')
+sim_res_model_PropCell <- simulateResiduals(model_PropCell)
+plot(sim_res_model_PropCell)
+# All significantly different from each others 
 
 set.seed(1234)
 res_Perc_PropCell_OK <- Compute_rf(df = Res_para_OK, Variable = 'Mean_Number_cell_infected', rhoD = ' + rhoD')
 res_Perc_PropCell_CS <- Compute_rf(df = Res_para_CS, Variable = 'Mean_Number_cell_infected', rhoS = ' + rhoS')
 res_Perc_PropCell_SK <- Compute_rf(df = Res_para_SK, Variable = 'Mean_Number_cell_infected', rhoD = ' + rhoD',  rhoS = ' + rhoS')
 
-SI2g <- VIA_Plot(rf_OK = res_Perc_PropCell_OK,
+SI3g <- VIA_Plot(rf_OK = res_Perc_PropCell_OK,
                  rf_CS = res_Perc_PropCell_CS,
                  rf_SK = res_Perc_PropCell_SK,
                  title_VIA = 'g. Proportion of cumulative environmental pathogen reservoirs',
                  name_VIA = 'Perc_PropCell')
 
-#######################
-## Mean cluster peak ##
-#######################
-summary(Unique_cluster_p$RA_mean) ; sd(Unique_cluster_p$ RA_mean, na.rm = T)
-summary(Unique_cluster_p[Unique_cluster_p$Scenario == 'OK', 'RA_mean']) ; sd(Unique_cluster_p[Unique_cluster_p$Scenario == 'OK', 'RA_mean'], na.rm = T)
-# Infection risk peak mean : 0.034 +_ 0.032 / max = 0.51
-summary(Unique_cluster_p[Unique_cluster_p$Scenario == 'CS', 'RA_mean']) ; sd(Unique_cluster_p[Unique_cluster_p$Scenario == 'CS', 'RA_mean'], na.rm = T)
-# Infection risk peak mean : 0.0097 +_ 0.011 / Max = 0.33
-summary(Unique_cluster_p[Unique_cluster_p$Scenario == 'SK', 'RA_mean']) ; sd(Unique_cluster_p[Unique_cluster_p$Scenario == 'SK', 'RA_mean'], na.rm = T)
-# Infection risk peak mean : 0.027 +_ 0.031 / Max = 0.69
-
-# Wilcoxon
-Signif_mean_RA <- Unique_cluster_p %>%
-  pairwise_wilcox_test(RA_mean ~ Scenario, p.adjust.method = "bonferroni")
-# ALL SIGNIFCANT : CS < SK < OK
-# CS < SK < OK
-
-set.seed(1234)
-res_MeanCluster_OK <- Compute_rf(df = Unique_cluster_p[Unique_cluster_p$Scenario == 'OK',], Variable = 'RA_mean', rhoD = ' + rhoD', nt = 250)
-res_MeanCluster_CS <- Compute_rf(df = Unique_cluster_p[Unique_cluster_p$Scenario == 'CS',], Variable = 'RA_mean', rhoS = ' + rhoS', nt = 250)
-res_MeanCluster_SK <- Compute_rf(df = Unique_cluster_p[Unique_cluster_p$Scenario == 'SK',], Variable = 'RA_mean', rhoD = ' + rhoD',  rhoS = ' + rhoS', nt = 250)
-
-SI2h <- VIA_Plot(rf_OK = res_MeanCluster_OK,
-                 rf_CS = res_MeanCluster_CS,
-                 rf_SK = res_MeanCluster_SK,
-                 title_VIA = 'h. Mean cluster infectivity peak',
-                 name_VIA = 'RA_mean')
-
-
-######################################
-## Number of reservoirs in clusters ##
-######################################
-
-summary(Unique_cluster_p$Size_mean) ; sd(Unique_cluster_p$ Size_mean, na.rm = T)
-summary(Unique_cluster_p[Unique_cluster_p$Scenario == 'OK', 'Size_mean']) ; sd(Unique_cluster_p[Unique_cluster_p$Scenario == 'OK', 'Size_mean'], na.rm = T)
-# Mean number of reservoir in a cluster :  Median :9 / Mean sd 15 +_ 14.7 / Max = 127
-summary(Unique_cluster_p[Unique_cluster_p$Scenario == 'CS', 'Size_mean']) ; sd(Unique_cluster_p[Unique_cluster_p$Scenario == 'CS', 'Size_mean'], na.rm = T)
-# Mean number of reservoir in a cluster :  Median : 23 / Mean sd 32 +_ 32 / Max = 323
-summary(Unique_cluster_p[Unique_cluster_p$Scenario == 'SK', 'Size_mean']) ; sd(Unique_cluster_p[Unique_cluster_p$Scenario == 'SK', 'Size_mean'], na.rm = T)
-# Mean number of reservoir in a cluster : Median : 29 / Mean sd 42 +_ 44 / Max = 326
-
-# Wilcoxon
-Signif_size_mean <- Unique_cluster_p %>%
-  pairwise_wilcox_test(Size_mean ~ Scenario, p.adjust.method = "bonferroni")
-# ALL SIGNIFICANT : OK < CS < SK
-
-set.seed(1234)
-res_Size_mean_OK <- Compute_rf(df = Unique_cluster_p[Unique_cluster_p$Scenario == 'OK',], Variable = 'Size_mean', rhoD = ' + rhoD', nt = 250)
-res_Size_mean_CS <- Compute_rf(df = Unique_cluster_p[Unique_cluster_p$Scenario == 'CS',], Variable = 'Size_mean', rhoS = ' + rhoS', nt = 250)
-res_Size_mean_SK <- Compute_rf(df = Unique_cluster_p[Unique_cluster_p$Scenario == 'SK',], Variable = 'Size_mean', rhoD = ' + rhoD',  rhoS = ' + rhoS', nt = 250)
-
-SI2i <- VIA_Plot(rf_OK = res_Size_mean_OK,
-                 rf_CS = res_Size_mean_CS,
-                 rf_SK = res_Size_mean_SK,
-                 title_VIA = 'i. Mean number of reservoirs within a cluster',
-                 name_VIA = 'Size_mean')
+Global_RF_SI2g <- Global_RF_VIA(Variable = 'Mean_Number_cell_infected', df = Res_para, 
+                    VIA_title = 'g. Proportion of cumulative environmental pathogen reservoir' )
 
 ##############################
 ## Number of unique cluster ##
@@ -691,12 +762,13 @@ summary(Num_unique[Num_unique$Scenario == 'CS',]$Unique_clust) ; sd(Num_unique[N
 summary(Num_unique[Num_unique$Scenario == 'SK',]$Unique_clust) ; sd(Num_unique[Num_unique$Scenario == 'SK',]$Unique_clust, na.rm = T)
 # Number of unique clusters  : 2.88 +_ 1.76 / Max = 15
 
-# Wilcoxon
-Signif_Unique_clust <- Num_unique %>%
-  as.data.frame() %>%
-  pairwise_wilcox_test(Unique_clust ~ Scenario, p.adjust.method = "bonferroni")
-
-## ALL SIGNIFICANT : SK < OK < CS
+### Comparisons between release mode:
+# Gamma family: continuous data
+model_Num_unique_clust <- glmmTMB(Unique_clust ~ Scenario + (1 | para), family = Gamma(link = "log"), data = Num_unique)
+emmeans(model_Num_unique_clust, pairwise ~ Scenario, adjust = "tukey", type = 'response')
+sim_res_model_Num_unique_clust <- simulateResiduals(model_Num_unique_clust)
+plot(sim_res_model_Num_unique_clust)
+# All significantly different from each others 
 
 set.seed(1234)
 res_Unique_clust_OK <- Compute_rf(df = Num_unique[Num_unique$Scenario == 'OK',], Variable = 'Unique_clust', rhoD = ' + rhoD')
@@ -704,13 +776,83 @@ res_Unique_clust_CS <- Compute_rf(df = Num_unique[Num_unique$Scenario == 'CS',],
 res_Unique_clust_SK <- Compute_rf(df = Num_unique[Num_unique$Scenario == 'SK',], Variable = 'Unique_clust', rhoD = ' + rhoD',  rhoS = ' + rhoS')
 
 
-SI2j <- VIA_Plot(rf_OK = res_Unique_clust_OK,
+SI3h <- VIA_Plot(rf_OK = res_Unique_clust_OK,
                  rf_CS = res_Unique_clust_CS,
                  rf_SK = res_Unique_clust_SK,
-                 title_VIA = 'j. Number of unique clusters created over a simulation',
+                 title_VIA = 'h. Number of unique clusters created over a simulation',
                  name_VIA = 'Unique_clust')
 
+Global_RF_SI2h <- Global_RF_VIA(Variable = 'Unique_clust', df = Num_unique, 
+                     VIA_title = 'h. Number of unique clusters created over a simulation' )
 
+#######################
+## Mean cluster peak ##
+#######################
+summary(Unique_cluster_p$RA_mean) ; sd(Unique_cluster_p$ RA_mean, na.rm = T)
+summary(Unique_cluster_p[Unique_cluster_p$Scenario == 'OK', 'RA_mean']) ; sd(Unique_cluster_p[Unique_cluster_p$Scenario == 'OK', 'RA_mean'], na.rm = T)
+# Infection risk peak mean : 0.034 +_ 0.032 / max = 0.51
+summary(Unique_cluster_p[Unique_cluster_p$Scenario == 'CS', 'RA_mean']) ; sd(Unique_cluster_p[Unique_cluster_p$Scenario == 'CS', 'RA_mean'], na.rm = T)
+# Infection risk peak mean : 0.0097 +_ 0.011 / Max = 0.33
+summary(Unique_cluster_p[Unique_cluster_p$Scenario == 'SK', 'RA_mean']) ; sd(Unique_cluster_p[Unique_cluster_p$Scenario == 'SK', 'RA_mean'], na.rm = T)
+# Infection risk peak mean : 0.027 +_ 0.031 / Max = 0.69
+
+### Comparisons between release mode:
+# beta family (as RA is bounded between 0-1 = Probability of infection given contact)
+model_RA_mean <- glmmTMB(RA_mean ~ Scenario + (1 | para), family = beta_family(link = "logit"), data = Unique_cluster_p)
+emmeans(model_RA_mean, pairwise ~ Scenario, adjust = "tukey", type = 'response')
+sim_res_model_RA_mean <- simulateResiduals(model_RA_mean)
+plot(sim_res_model_RA_mean)
+# All significantly different from each others 
+
+
+set.seed(1234)
+res_MeanCluster_OK <- Compute_rf(df = Unique_cluster_p[Unique_cluster_p$Scenario == 'OK',], Variable = 'RA_mean', rhoD = ' + rhoD', nt = 250)
+res_MeanCluster_CS <- Compute_rf(df = Unique_cluster_p[Unique_cluster_p$Scenario == 'CS',], Variable = 'RA_mean', rhoS = ' + rhoS', nt = 250)
+res_MeanCluster_SK <- Compute_rf(df = Unique_cluster_p[Unique_cluster_p$Scenario == 'SK',], Variable = 'RA_mean', rhoD = ' + rhoD',  rhoS = ' + rhoS', nt = 250)
+
+SI3i <- VIA_Plot(rf_OK = res_MeanCluster_OK,
+                 rf_CS = res_MeanCluster_CS,
+                 rf_SK = res_MeanCluster_SK,
+                 title_VIA = 'i. Mean cluster infectivity peak',
+                 name_VIA = 'RA_mean')
+
+Global_RF_SI2i <- Global_RF_VIA(Variable = 'RA_mean', df = Unique_cluster_p, 
+                       VIA_title = 'i. Mean cluster infectivity peak' )
+
+######################################
+## Number of reservoirs in clusters ##
+######################################
+
+summary(Unique_cluster_p$Size_mean) ; sd(Unique_cluster_p$ Size_mean, na.rm = T)
+summary(Unique_cluster_p[Unique_cluster_p$Scenario == 'OK', 'Size_mean']) ; sd(Unique_cluster_p[Unique_cluster_p$Scenario == 'OK', 'Size_mean'], na.rm = T)
+# Mean number of reservoir in a cluster :  Median :9 / Mean sd 15 +_ 14.7 / Max = 127
+summary(Unique_cluster_p[Unique_cluster_p$Scenario == 'CS', 'Size_mean']) ; sd(Unique_cluster_p[Unique_cluster_p$Scenario == 'CS', 'Size_mean'], na.rm = T)
+# Mean number of reservoir in a cluster :  Median : 23 / Mean sd 32 +_ 32 / Max = 323
+summary(Unique_cluster_p[Unique_cluster_p$Scenario == 'SK', 'Size_mean']) ; sd(Unique_cluster_p[Unique_cluster_p$Scenario == 'SK', 'Size_mean'], na.rm = T)
+# Mean number of reservoir in a cluster : Median : 29 / Mean sd 42 +_ 44 / Max = 326
+
+### Comparisons between release mode:
+# Gamma family: continuous data
+model_Size_mean <- glmmTMB(Size_mean ~ Scenario + (1 | para), family = Gamma(link = "log"), data = Unique_cluster_p)
+emmeans(model_Size_mean, pairwise ~ Scenario, adjust = "tukey", type = 'response')
+sim_res_model_Size_mean <- simulateResiduals(model_Size_mean)
+plot(sim_res_model_Size_mean)
+# All significantly different from each others 
+
+set.seed(1234)
+res_Size_mean_OK <- Compute_rf(df = Unique_cluster_p[Unique_cluster_p$Scenario == 'OK',], Variable = 'Size_mean', rhoD = ' + rhoD', nt = 250)
+res_Size_mean_CS <- Compute_rf(df = Unique_cluster_p[Unique_cluster_p$Scenario == 'CS',], Variable = 'Size_mean', rhoS = ' + rhoS', nt = 250)
+res_Size_mean_SK <- Compute_rf(df = Unique_cluster_p[Unique_cluster_p$Scenario == 'SK',], Variable = 'Size_mean', rhoD = ' + rhoD',  rhoS = ' + rhoS', nt = 250)
+
+SI3j <- VIA_Plot(rf_OK = res_Size_mean_OK,
+                 rf_CS = res_Size_mean_CS,
+                 rf_SK = res_Size_mean_SK,
+                 title_VIA = 'j. Mean number of reservoirs within a cluster',
+                 name_VIA = 'Size_mean')
+
+
+Global_RF_SI2j <- Global_RF_VIA(Variable = 'Size_mean', df = Unique_cluster_p, 
+                       VIA_title = 'j. Mean number of reservoirs within a cluster' )
 
 #####################################################################
 ############################## Figures ##############################
@@ -719,7 +861,6 @@ SI2j <- VIA_Plot(rf_OK = res_Unique_clust_OK,
 ############################
 ######## MS figures ########
 ############################
-
 
 ##############
 ## Figure 1 ##
@@ -1144,25 +1285,46 @@ ggarrange(pLand1, pLand2, pLand3, pLand4, common.legend = T)
 ggsave('Figures/FigureSI1.png')
 
 ###############
-## Figure S2 ##
+## Figure S3 ##
 ###############
 
-VIA_plot_SI2a <- ggarrange(SI2a, SI2b, SI2c,  
-                          ncol = 1, nrow = 3, common.legend = TRUE)
+VIA_plot_SI2a <- ggarrange(Global_RF_SI2a[[2]],Global_RF_SI2b[[2]],Global_RF_SI2c[[2]],  
+                           ncol = 1, nrow = 3, common.legend = TRUE)
 
 ggsave(plot = VIA_plot_SI2a, 'Figures/FigureSI2a.png', width = 12, height = 18)
 
 
-VIA_plot_SI2b <- ggarrange(SI2d, SI2e, SI2f,
-                          ncol = 1, nrow = 3, common.legend = TRUE)
+VIA_plot_SI2b <- ggarrange(Global_RF_SI2d[[2]],Global_RF_SI2e[[2]], Global_RF_SI2f[[2]],  
+                           ncol = 1, nrow = 3, common.legend = TRUE)
 
 ggsave(plot = VIA_plot_SI2b, 'Figures/FigureSI2b.png', width = 12, height = 18)
 
-
-VIA_plot_SI2c <- ggarrange(SI2g, SI2h, SI2i, SI2j, 
-                         ncol = 1, nrow = 4, common.legend = TRUE)
+VIA_plot_SI2c <- ggarrange(Global_RF_SI2g[[2]], Global_RF_SI2h[[2]], Global_RF_SI2i[[2]], Global_RF_SI2j[[2]],   
+                           ncol = 1, nrow = 4, common.legend = TRUE)
 
 ggsave(plot = VIA_plot_SI2c, 'Figures/FigureSI2c.png', width = 14, height = 22)
+
+
+###############
+## Figure S3 ##
+###############
+
+VIA_plot_SI3a <- ggarrange(SI3a, SI3b, SI3c,  
+                          ncol = 1, nrow = 3, common.legend = TRUE)
+
+ggsave(plot = VIA_plot_SI3a, 'Figures/FigureSI3a.png', width = 12, height = 18)
+
+
+VIA_plot_SI3b <- ggarrange(SI3d, SI3e, SI3f,
+                          ncol = 1, nrow = 3, common.legend = TRUE)
+
+ggsave(plot = VIA_plot_SI3b, 'Figures/FigureSI3b.png', width = 12, height = 18)
+
+
+VIA_plot_SI3c <- ggarrange(SI3g, SI3h, SI3i, SI3j, 
+                         ncol = 1, nrow = 4, common.legend = TRUE)
+
+ggsave(plot = VIA_plot_SI3c, 'Figures/FigureSI3c.png', width = 14, height = 22)
 
 
 ###############
