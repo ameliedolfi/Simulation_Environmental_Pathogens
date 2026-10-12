@@ -1200,21 +1200,17 @@ Plot_snapshot <- function(data, lim = '',Sce){
   plot(Plot_Land)
 }
 
-st = 3300
-para_p <- para_CS[para_CS$para == 249,][1,] ## Low medium gamma
-
-OK_p <- Snapshot_Pinf(Sce = 'OK', Para = para_p$para, Para2 = para_p$para2, Sim = 17, st = st, 
-                      Land = get(para_p$Land), Satscan_all = Unique_cluster_p)
+OK_p <- Snapshot_Pinf(Sce = 'OK', Para = 10, Para2 = 49, Sim = 2, st = 3300, 
+                      Land = Land3, Satscan_all = Unique_cluster_p)
 P_OK_lowg <- Plot_snapshot(data = OK_p, Sce= 'OK', lim = c(0, 0.05))
 
-SK_p <- Snapshot_Pinf(Sce = 'SK', Para = para_p$para, Para2 = para_p$para2+2, Sim = 17, st = st, 
-                      Land = get(para_p$Land), Satscan_all = Unique_cluster_p)
+SK_p <- Snapshot_Pinf(Sce = 'SK', Para = 10, Para2 = 50, Sim = 5, st = 7500, 
+                      Land = Land3, Satscan_all = Unique_cluster_p)
 P_SK_lowg <- Plot_snapshot(data = SK_p, Sce = 'SK', lim = c(0, 0.05))
 
-CS_p <- Snapshot_Pinf(Sce = 'CS', Para = para_p$para, Para2 = para_p$para2, Sim = 10, st = st, 
-                      Land = get(para_p$Land), Satscan_all = Unique_cluster_p)
+CS_p <- Snapshot_Pinf(Sce = 'CS', Para = 10, Para2 = 46, Sim = 1, st = 7500, 
+                      Land = Land3, Satscan_all = Unique_cluster_p)
 P_CS_lowg <- Plot_snapshot(data = CS_p, Sce = 'CS', lim = c(0, 0.05))
-
 
 ggarrange(P_OK_lowg, P_CS_lowg, P_SK_lowg, common.legend = T, ncol = 3, nrow = 1)
 
